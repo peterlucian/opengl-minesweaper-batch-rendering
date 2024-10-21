@@ -20,12 +20,9 @@
      layout (location = 0) out vec4 FragColor;
      in vec2 v_TexCoord;
      in float v_TexIndex;
-     //uniform vec4 u_Color;
-     uniform sampler2D u_Texture;   
+     uniform sampler2DArray textureArray;   
      void main()   
      {   
-          int index = int(v_TexIndex);
-          vec4 texColor = texture(u_Texture, v_TexCoord);
-          //vec4 texColor = u_Color;
-          FragColor = texColor;   
+          //int index = int(v_TexIndex);
+          FragColor = texture(textureArray, vec3(v_TexCoord, v_TexIndex));   
      };

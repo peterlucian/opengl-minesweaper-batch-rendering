@@ -12,6 +12,8 @@
 #include "Renderer.h"
 #include "Texture.h"
 
+#include "stb_image.h"
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -46,10 +48,33 @@ struct Cell {
     CellState state = CellState::HIDDEN;
     bool isMeme = false;  // Whether this cell contains a meme
     int neighboringMemeCount = 0;  // Number of memes in adjacent cells
+    bool dirty;
+};
+
+struct Vertex {
+    glm::vec2 position;
+    glm::vec2 texCoords;  // Assuming you have texture coordinates too
+    float textureID;
 };
 
 Cell grid[GRID_HEIGHT][GRID_WIDTH];
+
 bool firstClick = false;
+
+std::vector<const char *> filesPath = {
+        "res/zero.png", // For 0 adjacent memes
+        "res/one.png",  // For 1 adjacent meme
+        "res/two.png",  // For 2 adjacent memes
+        "res/three.png",  // For 3 adjacent memes
+        "res/four.png", // For 4 adjacent memes
+        "res/five.png",  // For 5 adjacent memes
+        "res/six.png", // For 6 adjacent memes
+        "res/seven.png",  // For 7 adjacent memes
+        "res/eight.png",  // For 8 adjacent memes
+        "res/hidden.png",
+        "res/flag.png",
+        "res/mine.png",
+    };
 
 void calculateMemeCounts() {
     // Directions for the 8 neighboring cells
@@ -114,7 +139,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         // Calculate the grid cell based on mouse position
         int grid_x = static_cast<int>(std::round(xpos)) / cell_size;
         int grid_y = static_cast<int>(std::round(ypos)) / cell_size;
-        
+        int cellIndex = grid_y * GRID_WIDTH + grid_x;
         // The grid is assumed to be a 2D array of Cells, where each Cell has a boolean isRevealed and isMeme.
 
         
@@ -147,9 +172,10 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
                 // Reveal the cell
                 grid[y][x].state = CellState::REVEALED;
-
+                
                 // Count neighboring memes
                 int memeCount = grid[y][x].neighboringMemeCount;
+                
 
                 // If no adjacent memes, reveal neighbors
                 if (memeCount == 0) {
@@ -177,11 +203,17 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                 }
                 if (button == GLFW_MOUSE_BUTTON_RIGHT) {
                     std::cout << "Right mouse button pressed at (" << xpos << ", " << ypos << ")" << std::endl;
-                    if(grid[grid_y][grid_x].isMeme)
+                    if(grid[grid_y][grid_x].isMeme){
                         grid[grid_y][grid_x].state = CellState::MEME;
-                    else if (!grid[grid_y][grid_x].isMeme)
+                    } else if (!grid[grid_y][grid_x].isMeme){
                         grid[grid_y][grid_x].state = CellState::REVEALED;
+                    }
+
                 }
+
+                // Mark the cell as dirty
+                grid[grid_y][grid_x].dirty = true;
+
             } else {
                 std::cout << "Click was outside the grid." << std::endl;
             }
@@ -190,11 +222,36 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     }
 }
 
-struct Vertex {
-    glm::vec2 position;
-    glm::vec2 texCoords;  // Assuming you have texture coordinates too
-    float textureID;
-};
+unsigned int load_textures(){
+    unsigned int texArrayId;
+    glGenTextures(1, &texArrayId);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texArrayId);
+    //glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, 128, 128, 12);
+
+    // Specify the storage for the texture array
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 128, 128, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    for (int i=0; i < 12; i++){
+        int width, height, channels;
+        stbi_set_flip_vertically_on_load(true);
+        //std::cout << filesPath[i] << std::endl;
+        unsigned char* data = stbi_load(filesPath[i], &width, &height, &channels, STBI_rgb_alpha);
+        
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, 128, 128, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+        stbi_image_free(data);
+    }
+
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    return texArrayId;
+}
+
 
 int main()
 {
@@ -223,7 +280,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     // Set the mouse button callback
-    //glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -236,8 +293,12 @@ int main()
     {
 
         
-        //placeMemes(10);
-        //calculateMemeCounts();
+        placeMemes(10);
+        calculateMemeCounts();
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        //glDisable(GL_DEPTH_TEST);
 
         for (size_t y = 0; y < GRID_HEIGHT; y++)
         {
@@ -319,14 +380,13 @@ int main()
             }
         }
 
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+     
 
         //Create the vertex Array and vertex Buffer
         VertexArray va;
         //VertexBuffer vb (vertices, 4 * 4 * sizeof(float));
         //VertexBuffer vb( &finalVertexBuffer, ( 4 * 4 + 4 ) * GRID_WIDTH * GRID_HEIGHT  * sizeof(float), true );
-        VertexBuffer vb( &finalVertexBuffer[0], 5 * finalVertexBuffer.size()  * sizeof(float), false );
+        VertexBuffer vb( &finalVertexBuffer[0], 5 * finalVertexBuffer.size()  * sizeof(float));
         
         // Create the vertex array layout and bind the buffer and the layout
         VertexBufferLayout layout;
@@ -346,43 +406,19 @@ int main()
         Shader shader("basic.shader");
         //shader.SetUniform4f("u_Color", 1.0f, 0.5f, 0.2f, 1.0f);
         
-
-        
-        
-
-        
-        // Texture zero("res/zero.png"); // For 0 adjacent memes
-        // Texture one("res/one.png");  // For 1 adjacent meme
-        // Texture two("res/two.png");  // For 2 adjacent memes
-        // Texture three("res/three.png");  // For 3 adjacent memes
-        // Texture four("res/four.png");  // For 4 adjacent memes
-        // Texture five("res/five.png");  // For 5 adjacent memes
-        // Texture six("res/six.png");  // For 6 adjacent memes
-        // Texture seven("res/seven.png");  // For 7 adjacent memes
-        // Texture eight("res/eight.png");   // For 8 adjacent memes
-    
-
-        Texture hidden ("res/hidden.png");
-        hidden.Bind();
-        // Texture flag ("res/flag.png");
-        // Texture mine ("res/mine.png");
-        
-
-
-        // VertexBuffer instancedVBO ( offsets, GRID_HEIGHT * GRID_WIDTH * 2 * sizeof(float) );
-        // // Now, bind it to the quad VAO
-        // glEnableVertexAttribArray(2);
-        // glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-        // glVertexAttribDivisor(2, 1); // Tell OpenGL this is an instanced attribute
-        // glBindVertexArray(0);
+        unsigned int textures = load_textures();
+      
 
         shader.Bind();
         shader.SetUniformMat4f("u_MVP", proj);
         shader.Bind();
-        shader.SetUniform1i("u_Texture", 0);
-        // int sampler[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-        // shader.SetUniform1iVec("u_Textures", sampler);
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textures);
+
+        shader.SetUniform1i("textureArray", 0);
+
+        
         // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
         // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
         // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
@@ -392,6 +428,7 @@ int main()
         Renderer renderer;
         // uncomment this call to draw in wireframe polygons.
         //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
         // render loop
         // -----------
         while (!glfwWindowShouldClose(window))
@@ -405,23 +442,41 @@ int main()
             
             shader.Bind();
 
-        
-            // zero.Bind(0);
-            // one.Bind(1);
-            // two.Bind(2);
-            // three.Bind(3);
-            // four.Bind(4);
-            // five.Bind(5);
-            // six.Bind(6);
-            // seven.Bind(7);
-            // eight.Bind(8);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, textures);
 
-            hidden.Bind();
-            // flag.Bind(10);
-            // mine.Bind(11);
+            for (int y = 0; y < GRID_HEIGHT; ++y) {
+                for (int x = 0; x < GRID_WIDTH; ++x) {
+                    Cell &cell = grid[y][x];
+                    int cellIndex = y * GRID_WIDTH + x;
+                    // Set the texture based on the cell state
+                    if (cell.dirty){
+                        switch (cell.state) {
+                            case HIDDEN:
+                                break;
+                            case REVEALED:
+                                finalVertexBuffer[cellIndex].textureID = cell.neighboringMemeCount;
+                                break;
+                            case FLAGGED:
+                                finalVertexBuffer[cellIndex].textureID = 10.0f;
+                                break;
+                            case MEME:
+                                finalVertexBuffer[cellIndex].textureID = 11.0f;
+                                break;
+                        }
+                    
+                    // Update the buffer using glBufferSubData
+                    GLintptr offset = cellIndex * sizeof(Vertex);
+                    glBufferSubData(GL_ARRAY_BUFFER, offset, sizeof(Vertex), &finalVertexBuffer[cellIndex]);
+
+                    // Reset the dirty flag
+                    cell.dirty = false;
+
+                    }
+                 }
+            }
             
-
-            //shader.SetUniform4f("u_Color", r, 0.5f, 0.2f, 1.0f);
+            
             // draw our first triangle
             
             renderer.Draw(va, ibo, shader);
