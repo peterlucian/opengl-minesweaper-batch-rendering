@@ -139,7 +139,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         // Calculate the grid cell based on mouse position
         int grid_x = static_cast<int>(std::round(xpos)) / cell_size;
         int grid_y = static_cast<int>(std::round(ypos)) / cell_size;
-        int cellIndex = grid_y * GRID_WIDTH + grid_x;
+    
         // The grid is assumed to be a 2D array of Cells, where each Cell has a boolean isRevealed and isMeme.
 
         
@@ -173,6 +173,9 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                 // Reveal the cell
                 grid[y][x].state = CellState::REVEALED;
                 
+                // Mark the cell as dirty
+                grid[y][x].dirty = true;
+
                 // Count neighboring memes
                 int memeCount = grid[y][x].neighboringMemeCount;
                 
@@ -243,11 +246,11 @@ unsigned int load_textures(){
     }
 
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     return texArrayId;
 }
@@ -298,7 +301,7 @@ int main()
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        //glDisable(GL_DEPTH_TEST);
+        glDisable(GL_DEPTH_TEST);
 
         for (size_t y = 0; y < GRID_HEIGHT; y++)
         {
@@ -429,6 +432,12 @@ int main()
         // uncomment this call to draw in wireframe polygons.
         //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+        // Update the buffer using glBufferSubData
+        // finalVertexBuffer[0].textureID = 5.0f;
+        // GLintptr offset = 0 * sizeof(Vertex);
+        // glBufferSubData(GL_ARRAY_BUFFER, offset, sizeof(Vertex), &finalVertexBuffer[0]);
+
+
         // render loop
         // -----------
         while (!glfwWindowShouldClose(window))
@@ -442,8 +451,8 @@ int main()
             
             shader.Bind();
 
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D_ARRAY, textures);
+            // glActiveTexture(GL_TEXTURE0);
+            // glBindTexture(GL_TEXTURE_2D_ARRAY, textures);
 
             for (int y = 0; y < GRID_HEIGHT; ++y) {
                 for (int x = 0; x < GRID_WIDTH; ++x) {
@@ -455,7 +464,7 @@ int main()
                             case HIDDEN:
                                 break;
                             case REVEALED:
-                                finalVertexBuffer[cellIndex].textureID = cell.neighboringMemeCount;
+                                finalVertexBuffer[cellIndex].textureID = static_cast<float>(cell.neighboringMemeCount);
                                 break;
                             case FLAGGED:
                                 finalVertexBuffer[cellIndex].textureID = 10.0f;
@@ -466,9 +475,12 @@ int main()
                         }
                     
                     // Update the buffer using glBufferSubData
-                    GLintptr offset = cellIndex * sizeof(Vertex);
+                    GLintptr offset = cellIndex * 5 * sizeof(float);
+                    va.Bind();
+                    vb.Bind();
                     glBufferSubData(GL_ARRAY_BUFFER, offset, sizeof(Vertex), &finalVertexBuffer[cellIndex]);
-
+                    std::cout << "cell index" << cellIndex << "yx" << y << x << std::endl;
+                     std::cout << "offset" << offset << "vertex size" << sizeof(Vertex) << std::endl;
                     // Reset the dirty flag
                     cell.dirty = false;
 
