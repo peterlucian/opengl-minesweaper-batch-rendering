@@ -458,31 +458,35 @@ int main()
                 for (int x = 0; x < GRID_WIDTH; ++x) {
                     Cell &cell = grid[y][x];
                     int cellIndex = y * GRID_WIDTH + x;
+                    int firstVertexIndex = cellIndex * 4; // 4 vertices per quad
                     // Set the texture based on the cell state
                     if (cell.dirty){
-                        switch (cell.state) {
-                            case HIDDEN:
-                                break;
-                            case REVEALED:
-                                finalVertexBuffer[cellIndex].textureID = static_cast<float>(cell.neighboringMemeCount);
-                                break;
-                            case FLAGGED:
-                                finalVertexBuffer[cellIndex].textureID = 10.0f;
-                                break;
-                            case MEME:
-                                finalVertexBuffer[cellIndex].textureID = 11.0f;
-                                break;
+
+                        if (cell.state == CellState::REVEALED) {
+                            for (int i = 0; i < 4; ++i) {
+                                finalVertexBuffer[firstVertexIndex + i].textureID = static_cast<float>(cell.neighboringMemeCount); // Or whichever texture ID you need
+                            }
                         }
-                    
-                    // Update the buffer using glBufferSubData
-                    GLintptr offset = cellIndex * 5 * sizeof(float);
-                    va.Bind();
-                    vb.Bind();
-                    glBufferSubData(GL_ARRAY_BUFFER, offset, sizeof(Vertex), &finalVertexBuffer[cellIndex]);
-                    std::cout << "cell index" << cellIndex << "yx" << y << x << std::endl;
-                     std::cout << "offset" << offset << "vertex size" << sizeof(Vertex) << std::endl;
-                    // Reset the dirty flag
-                    cell.dirty = false;
+                        if (cell.state == CellState::FLAGGED) {
+                            for (int i = 0; i < 4; ++i) {
+                                finalVertexBuffer[firstVertexIndex + i].textureID = 10.0f;
+                            }
+                        }
+                        if (cell.state == CellState::MEME) {
+                            for (int i = 0; i < 4; ++i) {
+                                finalVertexBuffer[firstVertexIndex + i].textureID = 11.0f;
+                            }
+                        }
+
+                        // Update the buffer using glBufferSubData
+                        GLintptr offset = cellIndex * 5 * sizeof(float);
+                        va.Bind();
+                        vb.Bind();
+                        glBufferSubData(GL_ARRAY_BUFFER, firstVertexIndex * sizeof(Vertex), 4 * sizeof(Vertex), &finalVertexBuffer[firstVertexIndex]);
+                        std::cout << "cell index" << cellIndex << "yx" << y << x << std::endl;
+                        std::cout << "offset" << offset << "vertex size" << sizeof(Vertex) << std::endl;
+                        // Reset the dirty flag
+                        cell.dirty = false;
 
                     }
                  }
