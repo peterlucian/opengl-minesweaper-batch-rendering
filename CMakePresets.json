@@ -1,0 +1,14 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "ucrt64",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "C:/msys64/ucrt64/bin/gcc.exe",
+                "CMAKE_CXX_COMPILER": "C:/msys64/ucrt64/bin/g++.exe"
+            }
+        }
+    ]
+}
